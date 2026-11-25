@@ -1,0 +1,13 @@
+# spendly_agent -- requirements
+#
+# The runtime (agent.py, db.py, make_demo_db.py, test_all.py) runs entirely on
+# sqlite, which is built into Python -- so nothing below is needed for the
+# agent as it stands. Install this file only when you enable an extra:
+#
+#     pip install -r requirements.txt
+
+sqlalchemy>=2.0                      # build spendly.db from your app's real models
+mcp>=1.2; python_version >= "3.10"   # expose the DB tools as an MCP server (auto-skipped on 3.9)
+
+# --- uncomment when db.get_connection() targets your real Postgres ---
+# psycopg2-binary>=2.9
