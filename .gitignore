@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
-spendly.db
 demo.db
 .env
 .idea/
 .DS_Store
+reports
