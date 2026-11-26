@@ -9,7 +9,7 @@ runs its own SQL, renders to-scale text charts, audits its own figures, and
 returns a formatted analyst briefing:
 
 ```
-python3 agent.py "How much did I spend on Food & Dining in October?"
+python3 src/main.py "How much did I spend on Food & Dining in October?"
 
 Your total spending on Food & Dining in October was ₹6,402.09 📈. The highest
 spending merchant in this category during October was Zomato, where you spent
@@ -61,7 +61,7 @@ A few deliberate design choices keep the model honest:
 
 ## Read-only by construction
 
-`db.py` guards every query the model can make:
+`tools.py` guards every query the model can make:
 
 - Only a single `SELECT` / `WITH` statement is accepted.
 - Write keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, …) are
@@ -73,41 +73,51 @@ A few deliberate design choices keep the model honest:
 
 ## Files
 
+All source code lives in `src/`; data and reports stay at the project root.
+
 | File | Purpose |
 | ---- | ------- |
-| `agent.py` | The agent: tools, chart renderers, Ollama plumbing, CLI |
-| `db.py` | Read-only database access: schema introspection + guarded SQL |
-| `make_demo_db.py` | Seed `spendly.db` with ~3 months of dummy UPI/card transactions |
-| `test_all.py` | Tests for the guard, introspection and agent loop (no network needed) |
+| `src/main.py` | The CLI: argument parsing, terminal output, `--save` reports |
+| `src/agent.py` | The `SqlAgent` class (agent loop) |
+| `src/llm.py` | The `LLM` class: one `/api/chat` round-trip through the `ollama` package |
+| `src/tools.py` | The `SqlTools` class: read-only database access, the tools (`list_tables`, `describe_table`, `run_sql`, `make_chart`) and the dispatcher |
+| `src/utils.py` | Helpers: chart rendering, markdown colouring (ANSI + rich), system-prompt construction |
+| `src/constants.py` | All constants: Ollama host/model, prompts, database limits, SQL-guard patterns, colour palettes, paths |
+| `src/make_demo_db.py` | Seed `spendly.db` with ~3 months of dummy UPI/card transactions |
+| `src/test_all.py` | Tests for the guard, introspection and agent loop (no network needed) |
 | `spendly.db` | The seeded SQLite demo database |
 | `reports/` | Saved markdown reports (written by `--save`) |
 
 ## Getting started
 
-Requires Python 3.10+ and [Ollama](https://ollama.com) running locally
-(`ollama serve`).
+Requires Python 3.10+, [Ollama](https://ollama.com) running locally
+(`ollama serve`), and the `ollama` python package.
 
 ```bash
+# 0. install the python dependency
+pip install -r requirements.txt
+
 # 1. pull a model
 ollama pull gemma4:latest        # default; most reliable for multi-join SQL
 
 # 2. build the demo database (once)
-python3 make_demo_db.py
+python3 src/make_demo_db.py
 
 # 3. ask a question
-python3 agent.py "How much did I spend on Food & Dining in October?"
-python3 agent.py "Total spend per category" --save    # also write reports/<timestamp>.md
+python3 src/main.py "How much did I spend on Food & Dining in October?"
+python3 src/main.py "Total spend per category" --save    # also write reports/<timestamp>.md
 ```
 
-The runtime uses only the Python standard library (sqlite3, urllib) — nothing
-to install. `requirements.txt` lists optional extras (SQLAlchemy, MCP,
-psycopg2) for building the DB from real models or targeting a real Postgres.
+The database layer is sqlite (built into Python); the only runtime dependency
+is the `ollama` package. `requirements.txt` also lists optional extras
+(SQLAlchemy, MCP, psycopg2) for building the DB from real models or targeting
+a real Postgres.
 
 ### CLI options
 
 ```
-python3 agent.py [question] [--model MODEL] [--save] [--no-audit]
-                       [--no-color] [--base-url URL] [--list-tools]
+python3 src/main.py [question] [--model MODEL] [--save] [--no-audit]
+                       [--no-color] [--host HOST] [--list-tools]
 ```
 
 | Flag | Effect |
@@ -116,7 +126,7 @@ python3 agent.py [question] [--model MODEL] [--save] [--no-audit]
 | `--save` | Also write the final markdown report to `reports/` |
 | `--no-audit` | Skip the figure-audit pass (faster, slightly less reliable) |
 | `--no-color` | Disable ANSI colours in terminal output |
-| `--base-url` | Override the Ollama endpoint (default `http://localhost:11434/api/chat`) |
+| `--host` | Override the Ollama host (default `http://localhost:11434`) |
 | `--list-tools` | Print the tool JSON schemas and exit |
 
 ## Pointing it at your real database
@@ -133,13 +143,13 @@ python3 agent.py [question] [--model MODEL] [--save] [--no-audit]
 The database file location can also be overridden without editing code:
 
 ```bash
-SQLAGENT_DB=/path/to/your.db python3 agent.py "..."
+SQLAGENT_DB=/path/to/your.db python3 src/main.py "..."
 ```
 
 ## Tests
 
 ```bash
-python3 test_all.py
+python3 src/test_all.py
 ```
 
 Part 1 exercises the database layer (guard, introspection, query execution)
